@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Вход в аккаунт RDRUX">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>RDRUX ACCOUNT</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👤</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        body {
+            background: #0a0a0a;
+            min-height: 100vh;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        /* СКАНЕР */
+        .scanner-line {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #ff0000, transparent);
+            animation: scan 3s linear infinite;
+            z-index: 1;
+        }
+        
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+        
+        /* ХЕДЕР С ЮЗЕРНЕЙМОМ (показывается после входа) */
+        .user-header {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 1000;
+            background: rgba(15, 15, 15, 0.9);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        
+        .user-header.active {
+            display: flex;
+        }
+        
+        .username-display {
+            color: #fff;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+        
+        .logout-btn-header {
+            background: #333;
+            border: none;
+            color: #aaa;
+            font-size: 10px;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .logout-btn-header:hover {
+            background: #444;
+        }
+        
+        /* ТЕЛЕГРАМ ИКОНКА В МЕНЮ */
+        .telegram-icon {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            width: 32px;
+            height: 32px;
+            background: #0088cc;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+        
+        .telegram-icon:hover {
+            background: #0099ee;
+            transform: scale(1.1);
+        }
+        
+        .telegram-icon svg {
+            width: 18px;
+            height: 18px;
+            fill: white;
+        }
+        
+        /* ЭКРАН ФОРМЫ */
+        .form-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a0a;
+            z-index: 100;
+        }
+        
+        .access-box {
+            width: 100%;
+            max-width: 320px;
+            padding: 20px;
+            border: 1px solid #333;
+            background: rgba(15, 15, 15, 0.95);
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .access-title {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+        
+        .form-group {
+            margin-bottom: 12px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+        }
+        
+        .form-group.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 4px;
+            color: #aaa;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* КОМПАКТНЫЕ ПОЛЯ ВВОДА */
+        .form-input {
+            width: 100%;
+            padding: 8px 10px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 12px;
+            transition: border-color 0.2s;
+            height: 32px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #ff3333;
+        }
+        
+        /* ПОЛЯ ДЛЯ КОДА */
+        .code-inputs {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            margin: 12px 0;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease 0.3s;
+        }
+        
+        .code-inputs.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .code-input {
+            width: 40px;
+            height: 40px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            padding: 0;
+            transition: all 0.3s;
+        }
+        
+        .code-input.valid {
+            background: rgba(0, 255, 0, 0.1);
+            border-color: #00ff00;
+            color: #00ff00;
+        }
+        
+        .code-input:focus {
+            outline: none;
+            border-color: #ff3333;
+            background: #222;
+        }
+        
+        /* КНОПКИ */
+        .btn {
+            width: 100%;
+            padding: 9px;
+            background: #ff3333;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: background 0.2s;
+            height: 32px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease 0.1s;
+        }
+        
+        .btn.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .btn:hover {
+            background: #ff5555;
+        }
+        
+        .btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+        
+        .remember-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 10px 0;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease 0.2s;
+        }
+        
+        .remember-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .remember-checkbox {
+            width: 12px;
+            height: 12px;
+            accent-color: #ff3333;
+        }
+        
+        .remember-label {
+            color: #aaa;
+            font-size: 10px;
+            cursor: pointer;
+        }
+        
+        .message {
+            padding: 8px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 11px;
+            display: none;
+            border-radius: 4px;
+        }
+        
+        .message.show {
+            display: block;
+        }
+        
+        .message-success {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00cc00;
+            color: #00ff00;
+        }
+        
+        .message-error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff3333;
+            color: #ff6666;
+        }
+        
+        .timer {
+            text-align: center;
+            color: #888;
+            margin: 10px 0;
+            font-size: 10px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease 0.4s;
+        }
+        
+        .timer.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .loader {
+            border: 2px solid #333;
+            border-top: 2px solid #ff3333;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            margin: 6px auto;
+            display: none;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* ЭКРАН РАЗРАБОТКИ */
+        .dev-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a0a;
+            z-index: 90;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .dev-screen.active {
+            display: flex;
+        }
+        
+        .dev-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #ff3333;
+            margin-bottom: 15px;
+            letter-spacing: 1px;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.5s ease 0.3s forwards;
+        }
+        
+        .dev-text {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 25px;
+            max-width: 300px;
+            line-height: 1.5;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.5s ease 0.5s forwards;
+        }
+        
+        .telegram-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid #0088cc;
+            color: #0088cc;
+            font-size: 13px;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: all 0.2s;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.5s ease 0.7s forwards;
+        }
+        
+        .telegram-link:hover {
+            background: rgba(0, 136, 204, 0.1);
+        }
+        
+        /* АНИМАЦИИ */
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px #00ff00; }
+            50% { box-shadow: 0 0 15px #00ff00; }
+            100% { box-shadow: 0 0 5px #00ff00; }
+        }
+        
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Сканирующая линия -->
+    <div class="scanner-line"></div>
+    
+    <!-- ХЕДЕР С ЮЗЕРНЕЙМОМ (появляется после входа) -->
+    <div class="user-header" id="userHeader">
+        <div class="username-display" id="usernameDisplay"></div>
+        <button class="logout-btn-header" onclick="logout()">ВЫЙТИ</button>
+    </div>
+    
+    <!-- ЭКРАН 1: Форма входа -->
+    <div class="form-screen" id="formScreen">
+        <div class="access-box">
+            <div class="access-title">ВХОД В АККАУНТ</div>
+            
+            <!-- Шаг 1: Email -->
+            <div class="form-step active" id="emailStep">
+                <div class="message" id="emailMessage"></div>
+                <div class="loader" id="emailLoader"></div>
+                
+                <form id="emailForm">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="email" class="form-input" placeholder="email@example.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Ваш юзернейм</label>
+                        <input type="text" id="username" class="form-input" placeholder="Ваш юзернейм" required>
+                    </div>
+                    
+                    <div class="remember-container">
+                        <input type="checkbox" id="rememberMe" class="remember-checkbox">
+                        <label for="rememberMe" class="remember-label">Запомнить меня</label>
+                    </div>
+                    
+                    <button type="submit" class="btn" id="sendBtn">ПОЛУЧИТЬ КОД</button>
+                </form>
+            </div>
+            
+            <!-- Шаг 2: Код -->
+            <div class="form-step" id="codeStep">
+                <div class="message" id="codeMessage"></div>
+                <div class="loader" id="codeLoader"></div>
+                
+                <div style="text-align: center; margin-bottom: 12px; color: #ff6666; font-size: 11px; opacity: 0; transform: translateY(20px); transition: all 0.5s ease 0.2s;" id="emailDisplayContainer">
+                    Код отправлен на<br>
+                    <span id="userEmailDisplay" style="font-size: 12px;"></span>
+                </div>
+                
+                <form id="codeForm">
+                    <div class="code-inputs">
+                        <input type="text" maxlength="1" class="code-input" data-index="0" autocomplete="off">
+                        <input type="text" maxlength="1" class="code-input" data-index="1" autocomplete="off">
+                        <input type="text" maxlength="1" class="code-input" data-index="2" autocomplete="off">
+                        <input type="text" maxlength="1" class="code-input" data-index="3" autocomplete="off">
+                    </div>
+                    <input type="hidden" id="fullCode">
+                    
+                    <div class="timer" id="timer">
+                        Код действителен: <span id="timerText">10:00</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ЭКРАН 2: Сайт в разработке -->
+    <div class="dev-screen" id="devScreen">
+        <div class="dev-title">САЙТ В РАЗРАБОТКЕ</div>
+        <div class="dev-text">Следите за обновлениями<br>в нашем Telegram канале</div>
+        <a href="https://t.me/deryredux" target="_blank" class="telegram-link">
+            TELEGRAM КАНАЛ
+        </a>
+    </div>
+
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
+    <script>
+        // ============================================
+        // НАСТРОЙКИ
+        // ============================================
+        const EMAILJS_CONFIG = {
+            serviceId: 'service_q9jkmjf',
+            templateId: 'template_fjbyxul',
+            publicKey: 'AuME7y5h8Ho-rmu4t',
+            fromName: 'RDRUX ACCOUNT'
+        };
+        
+        // ============================================
+        // СОСТОЯНИЕ
+        // ============================================
+        const state = {
+            userEmail: '',
+            username: '',
+            verificationCode: '',
+            codeExpiresAt: null,
+            timerInterval: null,
+            autoCheckInProgress: false,
+            isLoggedIn: false
+        };
+        
+        // ============================================
+        // DOM ЭЛЕМЕНТЫ
+        // ============================================
+        const formScreen = document.getElementById('formScreen');
+        const devScreen = document.getElementById('devScreen');
+        const userHeader = document.getElementById('userHeader');
+        const usernameDisplay = document.getElementById('usernameDisplay');
+        
+        const emailStep = document.getElementById('emailStep');
+        const codeStep = document.getElementById('codeStep');
+        const emailForm = document.getElementById('emailForm');
+        const codeForm = document.getElementById('codeForm');
+        const emailInput = document.getElementById('email');
+        const usernameInput = document.getElementById('username');
+        const rememberMe = document.getElementById('rememberMe');
+        const userEmailDisplay = document.getElementById('userEmailDisplay');
+        const emailDisplayContainer = document.getElementById('emailDisplayContainer');
+        
+        const sendBtn = document.getElementById('sendBtn');
+        
+        const emailMessage = document.getElementById('emailMessage');
+        const codeMessage = document.getElementById('codeMessage');
+        const emailLoader = document.getElementById('emailLoader');
+        const codeLoader = document.getElementById('codeLoader');
+        
+        const codeInputs = document.querySelectorAll('.code-input');
+        const fullCodeInput = document.getElementById('fullCode');
+        const timerText = document.getElementById('timerText');
+        const timerElement = document.getElementById('timer');
+        
+        // ============================================
+        // АНИМАЦИЯ ПОЯВЛЕНИЯ ЭЛЕМЕНТОВ
+        // ============================================
+        function showElementsWithAnimation() {
+            setTimeout(() => {
+                document.querySelectorAll('.form-group').forEach(el => el.classList.add('visible'));
+            }, 300);
+            
+            setTimeout(() => {
+                document.querySelector('.remember-container').classList.add('visible');
+            }, 500);
+            
+            setTimeout(() => {
+                document.querySelector('.btn').classList.add('visible');
+            }, 700);
+        }
+        
+        function showCodeElementsWithAnimation() {
+            setTimeout(() => {
+                emailDisplayContainer.style.opacity = '1';
+                emailDisplayContainer.style.transform = 'translateY(0)';
+            }, 300);
+            
+            setTimeout(() => {
+                document.querySelector('.code-inputs').classList.add('visible');
+            }, 500);
+            
+            setTimeout(() => {
+                timerElement.classList.add('visible');
+            }, 700);
+        }
+        
+        // ============================================
+        // СОХРАНЕНИЕ ДАННЫХ
+        // ============================================
+        function saveCredentials(email, username, remember) {
+            if (remember && email && username) {
+                localStorage.setItem('rdrux_account_email', email);
+                localStorage.setItem('rdrux_account_username', username);
+                localStorage.setItem('rdrux_account_time', Date.now().toString());
+            }
+        }
+        
+        function loadCredentials() {
+            const savedEmail = localStorage.getItem('rdrux_account_email');
+            const savedUsername = localStorage.getItem('rdrux_account_username');
+            const savedTime = localStorage.getItem('rdrux_account_time');
+            
+            if (savedEmail && savedUsername && savedTime) {
+                const timePassed = Date.now() - parseInt(savedTime);
+                const daysPassed = timePassed / (1000 * 60 * 60 * 24);
+                
+                if (daysPassed < 7) {
+                    emailInput.value = savedEmail;
+                    usernameInput.value = savedUsername;
+                    rememberMe.checked = true;
+                    return true;
+                } else {
+                    clearCredentials();
+                }
+            }
+            return false;
+        }
+        
+        function clearCredentials() {
+            localStorage.removeItem('rdrux_account_email');
+            localStorage.removeItem('rdrux_account_username');
+            localStorage.removeItem('rdrux_account_time');
+        }
+        
+        // ============================================
+        // ОТОБРАЖЕНИЕ ЮЗЕРНЕЙМА
+        // ============================================
+        function showUsernameHeader(username) {
+            usernameDisplay.textContent = `@${username}`;
+            userHeader.classList.add('active');
+        }
+        
+        // ============================================
+        // EMAILJS
+        // ============================================
+        (function() {
+            try {
+                emailjs.init(EMAILJS_CONFIG.publicKey);
+            } catch (error) {
+                console.log('EmailJS не доступен');
+            }
+        })();
+        
+        // ============================================
+        // УТИЛИТЫ
+        // ============================================
+        function showMessage(element, text, type = 'info') {
+            element.textContent = text;
+            element.className = `message message-${type} show`;
+            setTimeout(() => element.style.display = 'none', 4000);
+        }
+        
+        function goToStep(step) {
+            if (step === 1) {
+                emailStep.classList.add('active');
+                codeStep.classList.remove('active');
+                showElementsWithAnimation();
+            }
+            if (step === 2) {
+                emailStep.classList.remove('active');
+                codeStep.classList.add('active');
+                setTimeout(() => {
+                    showCodeElementsWithAnimation();
+                    codeInputs[0].focus();
+                    startTimer();
+                }, 100);
+            }
+        }
+        
+        function generateRandomCode() {
+            return Math.floor(1000 + Math.random() * 9000).toString();
+        }
+        
+        // ============================================
+        // ЗАГОРАНИЕ ПОЛЕЙ КОДА
+        // ============================================
+        function glowCodeFields() {
+            let delay = 0;
+            
+            codeInputs.forEach((input, index) => {
+                setTimeout(() => {
+                    input.classList.add('valid');
+                    input.style.animation = 'glow 0.5s ease-in-out';
+                    
+                    setTimeout(() => {
+                        input.style.animation = '';
+                    }, 500);
+                    
+                    if (index === codeInputs.length - 1) {
+                        setTimeout(() => {
+                            loginSuccess();
+                        }, 500);
+                    }
+                }, delay);
+                
+                delay += 200;
+            });
+        }
+        
+        // ============================================
+        // УСПЕШНЫЙ ВХОД
+        // ============================================
+        function loginSuccess() {
+            state.isLoggedIn = true;
+            showUsernameHeader(state.username);
+            formScreen.style.display = 'none';
+            devScreen.classList.add('active');
+        }
+        
+        // ============================================
+        // ОТПРАВКА КОДА
+        // ============================================
+        async function sendVerificationCode(email, username) {
+            const code = generateRandomCode();
+            
+            emailLoader.style.display = 'block';
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'ОТПРАВКА...';
+            
+            try {
+                const templateParams = {
+                    to_name: username || email.split('@')[0],
+                    to_email: email,
+                    code: code,
+                    from_name: EMAILJS_CONFIG.fromName
+                };
+                
+                await emailjs.send(
+                    EMAILJS_CONFIG.serviceId,
+                    EMAILJS_CONFIG.templateId,
+                    templateParams
+                );
+                
+                state.verificationCode = code;
+                state.codeExpiresAt = Date.now() + 10 * 60000;
+                
+                return { success: true, code: code };
+                
+            } catch (error) {
+                state.verificationCode = code;
+                state.codeExpiresAt = Date.now() + 10 * 60000;
+                
+                return { success: true, code: code, demo: true };
+                
+            } finally {
+                emailLoader.style.display = 'none';
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'ПОЛУЧИТЬ КОД';
+            }
+        }
+        
+        // ============================================
+        // ТАЙМЕР
+        // ============================================
+        function startTimer() {
+            clearInterval(state.timerInterval);
+            
+            let timeLeft = 600;
+            
+            function update() {
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerText.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(state.timerInterval);
+                    timerText.textContent = 'ИСТЕКЛО';
+                    timerText.style.color = '#ff3333';
+                }
+                
+                timeLeft--;
+            }
+            
+            update();
+            state.timerInterval = setInterval(update, 1000);
+        }
+        
+        // ============================================
+        // АВТОМАТИЧЕСКАЯ ПРОВЕРКА КОДА
+        // ============================================
+        function checkCodeAutomatically() {
+            if (state.autoCheckInProgress) return;
+            
+            const enteredCode = fullCodeInput.value;
+            
+            if (enteredCode.length === 4) {
+                if (Date.now() > state.codeExpiresAt) {
+                    showMessage(codeMessage, 'Время кода истекло', 'error');
+                    return;
+                }
+                
+                if (enteredCode === state.verificationCode) {
+                    state.autoCheckInProgress = true;
+                    
+                    codeLoader.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        codeLoader.style.display = 'none';
+                        glowCodeFields();
+                    }, 800);
+                } else {
+                    showMessage(codeMessage, 'Неверный код', 'error');
+                    
+                    codeInputs.forEach(input => {
+                        input.style.borderColor = '#ff3333';
+                        setTimeout(() => {
+                            input.style.borderColor = '#333';
+                        }, 800);
+                    });
+                }
+            }
+        }
+        
+        // ============================================
+        // ВЫХОД ИЗ АККАУНТА
+        // ============================================
+        function logout() {
+            state.isLoggedIn = false;
+            state.userEmail = '';
+            state.username = '';
+            state.verificationCode = '';
+            state.codeExpiresAt = null;
+            state.autoCheckInProgress = false;
+            
+            clearCredentials();
+            
+            userHeader.classList.remove('active');
+            devScreen.classList.remove('active');
+            formScreen.style.display = 'flex';
+            
+            emailInput.value = '';
+            usernameInput.value = '';
+            codeInputs.forEach(input => {
+                input.value = '';
+                input.classList.remove('valid');
+                input.style.animation = '';
+            });
+            rememberMe.checked = false;
+            
+            goToStep(1);
+            emailInput.focus();
+        }
+        
+        // ============================================
+        // ОБРАБОТЧИКИ СОБЫТИЙ
+        // ============================================
+        emailForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = emailInput.value.trim();
+            const username = usernameInput.value.trim();
+            
+            if (!email || !email.includes('@') || !email.includes('.')) {
+                showMessage(emailMessage, 'Некорректный email', 'error');
+                return;
+            }
+            
+            if (!username || username.length < 2) {
+                showMessage(emailMessage, 'Введите юзернейм', 'error');
+                return;
+            }
+            
+            saveCredentials(email, username, rememberMe.checked);
+            
+            state.userEmail = email;
+            state.username = username;
+            userEmailDisplay.textContent = email;
+            
+            const result = await sendVerificationCode(email, username);
+            
+            if (result.success) {
+                if (result.demo) {
+                    showMessage(emailMessage, `Демо: код ${result.code}`, 'error');
+                } else {
+                    showMessage(emailMessage, `Код отправлен`, 'success');
+                }
+                
+                setTimeout(() => {
+                    goToStep(2);
+                }, 1200);
+            }
+        });
+        
+        codeInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                const value = e.target.value.replace(/\D/g, '');
+                input.value = value;
+                
+                if (value && index < 3) {
+                    codeInputs[index + 1].focus();
+                }
+                
+                let fullCode = '';
+                codeInputs.forEach(inp => fullCode += inp.value);
+                fullCodeInput.value = fullCode;
+                
+                checkCodeAutomatically();
+            });
+            
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !input.value && index > 0) {
+                    codeInputs[index - 1].focus();
+                }
+            });
+        });
+        
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCredentials();
+            setTimeout(() => {
+                showElementsWithAnimation();
+                emailInput.focus();
+            }, 500);
+        });
+    </script>
+</body>
+</html>
