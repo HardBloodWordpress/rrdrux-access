@@ -308,6 +308,7 @@
                 border-color: #ff3333;
                 background: rgba(40, 40, 40, 0.9);
             }
+
             
             .btn {
                 height: 56px;
@@ -587,6 +588,43 @@
             .form-input:focus {
                 outline: none;
                 border-color: #ff3333;
+            }
+
+            .username-status {
+                margin-top: 6px;
+                min-height: 14px;
+                font-size: 11px;
+                color: #888;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+            }
+
+            .username-status.visible {
+                opacity: 1;
+            }
+
+            .username-status.success {
+                color: #5cff8a;
+            }
+
+            .username-status.error {
+                color: #ff6666;
+            }
+
+            .username-status.loading {
+                color: #ffd166;
+            }
+
+            .username-status.info {
+                color: #aaa;
+            }
+
+            @media (max-width: 768px) {
+                .username-status {
+                    margin-top: 8px;
+                    min-height: 18px;
+                    font-size: 13px;
+                }
             }
             
             .code-inputs {
@@ -1289,6 +1327,7 @@
                     <div class="form-group">
                         <label class="form-label">Ваш юзернейм</label>
                         <input type="text" id="username" class="form-input" placeholder="Ваш юзернейм" required>
+                        <div class="username-status" id="usernameStatus"></div>
                     </div>
                     
                     <div class="remember-container">
@@ -1430,6 +1469,7 @@
         const codeForm = document.getElementById('codeForm');
         const emailInput = document.getElementById('email');
         const usernameInput = document.getElementById('username');
+        const usernameStatus = document.getElementById('usernameStatus');
         const rememberMe = document.getElementById('rememberMe');
         const userEmailDisplay = document.getElementById('userEmailDisplay');
         const emailDisplayContainer = document.getElementById('emailDisplayContainer');
@@ -1719,7 +1759,7 @@
         
         function logout() {
             clearSession();
-            
+
             state.userEmail = '';
             state.username = '';
             state.verificationCode = '';
@@ -1732,6 +1772,7 @@
             
             emailInput.value = '';
             usernameInput.value = '';
+            resetUsernameStatus();
             codeInputs.forEach(input => {
                 input.value = '';
                 input.classList.remove('valid');
@@ -1901,6 +1942,146 @@
         function generateRandomCode() {
             return Math.floor(1000 + Math.random() * 9000).toString();
         }
+
+        // ============================================
+        // ПРОВЕРКА ЮЗЕРНЕЙМА
+        // ============================================
+        const usernameCheckState = {
+            timer: null,
+            lastValue: '',
+            lastAvailable: null,
+            lastOwned: false,
+            controller: null
+        };
+
+        function normalizeUsername(value) {
+            return (value || '').trim().toLowerCase();
+        }
+
+        function normalizeEmail(value) {
+            return (value || '').trim().toLowerCase();
+        }
+
+        function setUsernameStatus(type, text) {
+            if (!usernameStatus) return;
+            usernameStatus.textContent = text || '';
+            usernameStatus.className = `username-status ${type || ''}`.trim();
+            if (text) {
+                usernameStatus.classList.add('visible');
+            }
+        }
+
+        function resetUsernameStatus() {
+            if (!usernameStatus) return;
+            usernameStatus.textContent = '';
+            usernameStatus.className = 'username-status';
+            usernameCheckState.lastValue = '';
+            usernameCheckState.lastAvailable = null;
+            usernameCheckState.lastOwned = false;
+        }
+
+        async function requestUsernameCheck(username, email, { force = false } = {}) {
+            if (!username) {
+                resetUsernameStatus();
+                return { available: false };
+            }
+
+            if (username.length < 2) {
+                setUsernameStatus('info', 'Минимум 2 символа');
+                usernameCheckState.lastValue = username;
+                usernameCheckState.lastAvailable = false;
+                return { available: false };
+            }
+
+            if (!force && username === usernameCheckState.lastValue && usernameCheckState.lastAvailable !== null) {
+                return {
+                    available: usernameCheckState.lastAvailable,
+                    owned: usernameCheckState.lastOwned
+                };
+            }
+
+            if (usernameCheckState.controller) {
+                usernameCheckState.controller.abort();
+            }
+
+            const controller = new AbortController();
+            usernameCheckState.controller = controller;
+            setUsernameStatus('loading', 'Проверяем...');
+
+            try {
+                const params = new URLSearchParams({ username });
+                if (email) {
+                    params.set('email', email);
+                }
+
+                const response = await fetch(`/.netlify/functions/username-check?${params.toString()}`, {
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error('Bad response');
+                }
+
+                const data = await response.json();
+                const available = Boolean(data.available);
+                const owned = Boolean(data.owned);
+
+                usernameCheckState.lastValue = username;
+                usernameCheckState.lastAvailable = available;
+                usernameCheckState.lastOwned = owned;
+
+                if (available) {
+                    setUsernameStatus('success', owned ? 'Юзернейм подтвержден для этого email' : 'Юзернейм свободен');
+                } else {
+                    setUsernameStatus('error', 'Юзернейм занят');
+                }
+
+                return { available, owned };
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    return { available: false, aborted: true };
+                }
+                console.error('Ошибка проверки юзернейма', error);
+                setUsernameStatus('error', 'Не удалось проверить юзернейм');
+                usernameCheckState.lastValue = username;
+                usernameCheckState.lastAvailable = null;
+                usernameCheckState.lastOwned = false;
+                return { available: false, error: true };
+            }
+        }
+
+        function scheduleUsernameCheck(value) {
+            clearTimeout(usernameCheckState.timer);
+
+            if (!value) {
+                resetUsernameStatus();
+                return;
+            }
+
+            if (value.length < 2) {
+                setUsernameStatus('info', 'Минимум 2 символа');
+                return;
+            }
+
+            usernameCheckState.timer = setTimeout(() => {
+                requestUsernameCheck(value, normalizeEmail(emailInput.value));
+            }, 350);
+        }
+
+        async function syncUsernameRecord(email, username) {
+            if (!email || !username) return;
+            try {
+                await fetch('/.netlify/functions/username-upsert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, username })
+                });
+            } catch (error) {
+                console.warn('Не удалось сохранить юзернейм', error);
+            }
+        }
         
         async function sendVerificationCode(email, username) {
             const code = generateRandomCode();
@@ -2003,7 +2184,8 @@
         
         function loginSuccess() {
             saveSession(state.username, state.userEmail);
-            
+            syncUsernameRecord(state.userEmail, state.username);
+
             formScreen.classList.remove('active');
             showLoggedInState(state.username, state.userEmail);
         }
@@ -2017,11 +2199,30 @@
         // ============================================
         // ОБРАБОТЧИКИ СОБЫТИЙ
         // ============================================
+        usernameInput.addEventListener('input', () => {
+            const normalized = normalizeUsername(usernameInput.value);
+            scheduleUsernameCheck(normalized);
+        });
+
+        usernameInput.addEventListener('blur', () => {
+            const normalized = normalizeUsername(usernameInput.value);
+            if (normalized.length >= 2) {
+                requestUsernameCheck(normalized, normalizeEmail(emailInput.value), { force: true });
+            }
+        });
+
+        emailInput.addEventListener('blur', () => {
+            const normalized = normalizeUsername(usernameInput.value);
+            if (normalized.length >= 2) {
+                requestUsernameCheck(normalized, normalizeEmail(emailInput.value), { force: true });
+            }
+        });
+
         emailForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const email = emailInput.value.trim();
-            const username = usernameInput.value.trim();
+            const email = normalizeEmail(emailInput.value);
+            const username = normalizeUsername(usernameInput.value);
             
             if (!email || !email.includes('@') || !email.includes('.')) {
                 showMessage(emailMessage, 'Некорректный email', 'error');
@@ -2032,7 +2233,16 @@
                 showMessage(emailMessage, 'Введите юзернейм', 'error');
                 return;
             }
-            
+
+            const availability = await requestUsernameCheck(username, email, { force: true });
+            if (!availability.available) {
+                showMessage(emailMessage, 'Юзернейм занят', 'error');
+                return;
+            }
+
+            emailInput.value = email;
+            usernameInput.value = username;
+
             saveCredentials(email, username, rememberMe.checked);
             
             state.userEmail = email;
