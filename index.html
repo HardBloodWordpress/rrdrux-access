@@ -31,6 +31,14 @@
             color: #fff;
             overflow-x: hidden;
         }
+
+        body.no-js .scanner-line {
+            display: none !important;
+        }
+
+        body.no-js .form-screen {
+            display: flex;
+        }
         
         /* УСТАНОВКА PWA БАННЕР */
         .pwa-install-banner {
@@ -308,6 +316,12 @@
                 border-color: #ff3333;
                 background: rgba(40, 40, 40, 0.9);
             }
+
+            .username-status {
+                font-size: 12px;
+                text-transform: none;
+                letter-spacing: 0;
+            }
             
             .btn {
                 height: 56px;
@@ -433,6 +447,8 @@
                 background: linear-gradient(90deg, transparent, #ff0000, transparent);
                 animation: scan 3s linear infinite;
                 z-index: 1;
+                pointer-events: none;
+                opacity: 0.35;
             }
             
             @keyframes scan {
@@ -584,10 +600,38 @@
                 height: 32px;
             }
             
-            .form-input:focus {
-                outline: none;
-                border-color: #ff3333;
-            }
+        .form-input:focus {
+            outline: none;
+            border-color: #ff3333;
+        }
+
+        .username-status {
+            margin-top: 6px;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            color: #aaa;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            text-transform: uppercase;
+        }
+
+        .username-status.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .username-status.status-checking {
+            color: #ffcc00;
+        }
+
+        .username-status.status-ok {
+            color: #00ff88;
+        }
+
+        .username-status.status-error {
+            color: #ff6666;
+        }
             
             .code-inputs {
                 display: flex;
@@ -1203,7 +1247,7 @@
         }
     </style>
 </head>
-<body>
+<body class="no-js">
     <!-- Сканирующая линия (только на компьютере) -->
     <div class="scanner-line"></div>
     
@@ -1289,6 +1333,7 @@
                     <div class="form-group">
                         <label class="form-label">Ваш юзернейм</label>
                         <input type="text" id="username" class="form-input" placeholder="Ваш юзернейм" required>
+                        <div class="username-status" id="usernameStatus"></div>
                     </div>
                     
                     <div class="remember-container">
@@ -1388,6 +1433,10 @@
             codeExpiresAt: null,
             timerInterval: null,
             autoCheckInProgress: false,
+            usernameCheckTimer: null,
+            usernameCheckAbort: null,
+            usernameCheckValue: '',
+            usernameAvailability: 'unknown',
             rouletteItems: [],
             currentPosition: 0,
             isSpinning: false,
@@ -1430,6 +1479,7 @@
         const codeForm = document.getElementById('codeForm');
         const emailInput = document.getElementById('email');
         const usernameInput = document.getElementById('username');
+        const usernameStatus = document.getElementById('usernameStatus');
         const rememberMe = document.getElementById('rememberMe');
         const userEmailDisplay = document.getElementById('userEmailDisplay');
         const emailDisplayContainer = document.getElementById('emailDisplayContainer');
@@ -1738,6 +1788,9 @@
                 input.style.animation = '';
             });
             rememberMe.checked = false;
+            setUsernameStatus('idle', '');
+            state.usernameAvailability = 'unknown';
+            state.usernameCheckValue = '';
             
             state.biometricAttempts = 0;
             
@@ -1834,6 +1887,9 @@
                         emailInput.value = data.email || '';
                         usernameInput.value = data.username || '';
                         rememberMe.checked = true;
+                        if (data.username) {
+                            setTimeout(() => scheduleUsernameCheck(), 0);
+                        }
                         return true;
                     } else {
                         clearCredentials();
@@ -1847,6 +1903,167 @@
         
         function clearCredentials() {
             localStorage.removeItem('rdrux_credentials');
+        }
+
+        // ============================================
+        // ПРОВЕРКА ЮЗЕРНЕЙМА
+        // ============================================
+        function normalizeUsername(value) {
+            return value.trim().toLowerCase();
+        }
+
+        function validateUsername(value) {
+            const trimmed = value.trim();
+            
+            if (!trimmed) {
+                return { valid: false, message: '' };
+            }
+            if (trimmed.length < 2) {
+                return { valid: false, message: 'Минимум 2 символа' };
+            }
+            if (trimmed.length > 20) {
+                return { valid: false, message: 'Не больше 20 символов' };
+            }
+            if (/\s/.test(trimmed)) {
+                return { valid: false, message: 'Без пробелов' };
+            }
+            
+            return { valid: true, message: '' };
+        }
+
+        function setUsernameStatus(type, text) {
+            if (!usernameStatus) return;
+            
+            if (!text) {
+                usernameStatus.textContent = '';
+                usernameStatus.className = 'username-status';
+                return;
+            }
+            
+            usernameStatus.textContent = text;
+            usernameStatus.className = `username-status visible status-${type}`;
+        }
+
+        async function checkUsernameAvailability(rawValue) {
+            const validation = validateUsername(rawValue);
+            
+            if (!validation.valid) {
+                state.usernameAvailability = validation.message ? 'invalid' : 'unknown';
+                setUsernameStatus('error', validation.message);
+                return null;
+            }
+            
+            const normalized = normalizeUsername(rawValue);
+            
+            if (state.usernameCheckValue === normalized && state.usernameAvailability !== 'unknown') {
+                return state.usernameAvailability === 'available';
+            }
+            
+            state.usernameCheckValue = normalized;
+            state.usernameAvailability = 'checking';
+            setUsernameStatus('checking', 'Проверяем...');
+            
+            if (state.usernameCheckAbort) {
+                state.usernameCheckAbort.abort();
+            }
+            
+            const controller = new AbortController();
+            state.usernameCheckAbort = controller;
+            
+            try {
+                const response = await fetch(`/.netlify/functions/check-username?username=${encodeURIComponent(normalized)}`, {
+                    signal: controller.signal
+                });
+                
+                if (!response.ok) {
+                    state.usernameAvailability = 'unknown';
+                    setUsernameStatus('error', 'Не удалось проверить');
+                    return null;
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.valid === false) {
+                    state.usernameAvailability = 'invalid';
+                    setUsernameStatus('error', data.reason || 'Некорректный юзернейм');
+                    return null;
+                }
+                
+                if (data && data.available) {
+                    state.usernameAvailability = 'available';
+                    setUsernameStatus('ok', 'Юзернейм свободен');
+                    return true;
+                }
+                
+                state.usernameAvailability = 'taken';
+                setUsernameStatus('error', 'Юзернейм занят');
+                return false;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    return null;
+                }
+                state.usernameAvailability = 'unknown';
+                setUsernameStatus('error', 'Не удалось проверить');
+                return null;
+            }
+        }
+
+        async function ensureUsernameAvailable(rawValue) {
+            const normalized = normalizeUsername(rawValue);
+            
+            if (state.usernameAvailability === 'available' && state.usernameCheckValue === normalized) {
+                return true;
+            }
+            
+            const result = await checkUsernameAvailability(rawValue);
+            return result === true;
+        }
+
+        function scheduleUsernameCheck() {
+            const rawValue = usernameInput.value;
+            const validation = validateUsername(rawValue);
+            
+            if (!validation.valid) {
+                clearTimeout(state.usernameCheckTimer);
+                if (state.usernameCheckAbort) {
+                    state.usernameCheckAbort.abort();
+                }
+                state.usernameAvailability = validation.message ? 'invalid' : 'unknown';
+                setUsernameStatus('error', validation.message);
+                return;
+            }
+            
+            if (!rawValue.trim()) {
+                clearTimeout(state.usernameCheckTimer);
+                if (state.usernameCheckAbort) {
+                    state.usernameCheckAbort.abort();
+                }
+                state.usernameAvailability = 'unknown';
+                setUsernameStatus('idle', '');
+                return;
+            }
+            
+            setUsernameStatus('checking', 'Проверяем...');
+            state.usernameAvailability = 'checking';
+            
+            clearTimeout(state.usernameCheckTimer);
+            state.usernameCheckTimer = setTimeout(() => {
+                checkUsernameAvailability(rawValue);
+            }, 400);
+        }
+
+        async function registerUserInDb(username, email) {
+            try {
+                await fetch('/.netlify/functions/register-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email })
+                });
+            } catch (error) {
+                console.warn('Регистрация юзернейма не удалась', error);
+            }
         }
         
         // ============================================
@@ -2006,17 +2223,29 @@
             
             formScreen.classList.remove('active');
             showLoggedInState(state.username, state.userEmail);
+            registerUserInDb(state.username, state.userEmail);
         }
         
         function showMessage(element, text, type = 'info') {
             element.textContent = text;
             element.className = `message message-${type} show`;
-            setTimeout(() => element.style.display = 'none', 4000);
+            setTimeout(() => element.classList.remove('show'), 4000);
         }
         
         // ============================================
         // ОБРАБОТЧИКИ СОБЫТИЙ
         // ============================================
+        usernameInput.addEventListener('input', () => {
+            scheduleUsernameCheck();
+        });
+        
+        usernameInput.addEventListener('blur', () => {
+            const validation = validateUsername(usernameInput.value);
+            if (validation.valid) {
+                checkUsernameAvailability(usernameInput.value);
+            }
+        });
+        
         emailForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -2028,8 +2257,21 @@
                 return;
             }
             
-            if (!username || username.length < 2) {
-                showMessage(emailMessage, 'Введите юзернейм', 'error');
+            const usernameValidation = validateUsername(username);
+            if (!usernameValidation.valid) {
+                showMessage(emailMessage, usernameValidation.message || 'Введите юзернейм', 'error');
+                return;
+            }
+
+            const available = await ensureUsernameAvailable(username);
+            if (!available) {
+                if (state.usernameAvailability === 'taken') {
+                    showMessage(emailMessage, 'Юзернейм занят', 'error');
+                } else if (state.usernameAvailability === 'invalid') {
+                    showMessage(emailMessage, 'Некорректный юзернейм', 'error');
+                } else {
+                    showMessage(emailMessage, 'Не удалось проверить юзернейм', 'error');
+                }
                 return;
             }
             
@@ -2353,6 +2595,8 @@
         // ЗАПУСК ПРИ ЗАГРУЗКЕ
         // ============================================
         document.addEventListener('DOMContentLoaded', () => {
+            document.body.classList.remove('no-js');
+            document.body.classList.add('js-ready');
             initializeOnLoad();
             
             window.addEventListener('beforeinstallprompt', (e) => {
